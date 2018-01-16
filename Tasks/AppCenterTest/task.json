@@ -210,6 +210,16 @@
             "groupName": "prepare"
         },
         {
+             "name":"publishNUnitResults",
+             "type":"boolean",
+             "label":"Publish NUnit Test Results",
+             "defaultValue":false,
+             "visibleRule":"enablePrepare = true && framework = uitest",
+             "required": false,
+             "groupName": "prepare",
+             "helpMarkDown": "When selected, --nunit-xml option will be passed to the appcenter-cli. Results from the NUnit xml file will be published to TFS/Team Services."
+         },
+        {
             "name": "signInfo",
             "type": "string",
             "label": "Signing Information",

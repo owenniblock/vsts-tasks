@@ -1,3 +1,5 @@
+/// <reference path="../../definitions/vsts-task-lib.d.ts" />
+
 import path = require('path');
 import tl = require('vsts-task-lib/task');
 import apim = require('vso-node-api');
@@ -9,6 +11,10 @@ import { ToolRunner } from 'vsts-task-lib/toolrunner';
 var utils = require('./utils.js');
 
 const testRunIdLineRegexp = /Test run id: "([^"]+)"/;
+var buildId = tl.getVariable('build.buildId');
+var publishNUnitResults:boolean = tl.getBoolInput('publishNUnitResults', true);
+var appCenterTestResults:string[] = [];
+var testDir:string = tl.getInput('uitestBuildDir', true);
 
 function getEndpointAPIToken(endpointInputFieldName) {
     var errorMessage = tl.loc("CannotDecodeEndpoint");
@@ -86,7 +92,7 @@ function getPrepareRunner(cliPath: string, debug: boolean, app: string, artifact
     let prepareRunner = tl.tool(cliPath);
     let framework: string = tl.getInput('framework', true);
 
-    // framework agnositic options 
+    // framework agnositic options
     prepareRunner.arg(['test', 'prepare', framework]);
     prepareRunner.arg(['--artifacts-dir', artifactsDir]);
 
@@ -114,6 +120,10 @@ function getPrepareRunner(cliPath: string, debug: boolean, app: string, artifact
         addStringArg('--key-password', 'uitestKeyPass', false, prepareRunner);
         addStringArg('--uitest-tools-dir', 'uitestToolsDir', false, prepareRunner);
         addStringArg('--sign-info', 'signInfo', false, prepareRunner);
+        if (publishNUnitResults) {
+          let nunitFile = path.join(testDir, '/appcentertest_' + buildId + '.1.xml');
+          prepareRunner.arg(['--nunit-xml', nunitFile]);
+        }
     } else if (framework === 'xcuitest') {
         addStringArg('--build-dir', 'xcuitestBuildDir', false, prepareRunner);
         addStringArg('--test-ipa-path', 'xcuitestTestIpaPath', false, prepareRunner);
@@ -232,6 +242,50 @@ async function setTestRunIdBuildPropertyAsync(testRunId: string) {
     }
 }
 
+function uploadTestSummary() {
+    tl.debug('Upload App Center Test run results summary. appCenterTestResults = ' + appCenterTestResults);
+
+    //create a .md file
+    var mdReportFile = path.join(testDir, '/appcentertest_' + buildId + '.md');
+    var reportData = '';
+    if (appCenterTestResults != null && appCenterTestResults.length > 0) {
+        for (var i = 0; i < appCenterTestResults.length; i++) {
+            reportData = reportData.concat(appCenterTestResults[i] + '<br>');
+        }
+    }
+
+    tl.debug('reportdata = ' + reportData);
+    tl.writeFile(mdReportFile, reportData);
+    tl.command('task.addattachment', {
+            name: "App Center Test Results",
+            type: "Distributedtask.Core.Summary"
+        }, mdReportFile);
+}
+
+function publishTestResults() {
+    if (publishNUnitResults) {
+
+        var allFiles = tl.find(testDir);
+        var matchOptions = {matchBase: true};
+        var matchingTestResultsFiles = tl.match(allFiles, 'appcentertest_' + buildId + '*.xml', matchOptions);
+
+        var tp = new tl.TestPublisher("NUnit");
+        tp.publish(matchingTestResultsFiles, false, "", "", "", "");
+    }
+}
+
+var onRunComplete = function () {
+  publishTestResults();
+  uploadTestSummary();
+  tl.setResult(tl.TaskResult.Succeeded, tl.loc("Succeeded"));
+}
+
+var onFailedExecution = function (err) {
+    tl.setResult(tl.TaskResult.Failed, err);
+    tl.debug('Error executing test run: ' + err);
+    onRunComplete();
+}
+
 async function run() {
     tl.setResourcePath(path.join(__dirname, 'task.json'));
     let cliPath = getCliPath();
@@ -269,10 +323,21 @@ async function run() {
             }
 
             let testRunner = getTestRunner(cliPath, debug, app, artifactsDir, credsType);
-            await testRunner.exec();
-        }
 
-        tl.setResult(tl.TaskResult.Succeeded, tl.loc("Succeeded"));
+            //read stdout
+            testRunner.on('stdout', function (data) {
+              if (data) {
+                var matches = data.toString().toLowerCase().match(/https:\/\/appcenter.ms\/users\/.+\//g);
+                if (matches != null) {
+                  appCenterTestResults = appCenterTestResults.concat(matches);
+                }
+              }
+            });
+
+            await testRunner.exec()
+              .then(onRunComplete)
+              .fail(onFailedExecution);
+        }
     } catch (err) {
         tl.setResult(tl.TaskResult.Failed, `${err}`);
     } finally {

@@ -234,6 +234,16 @@
       "groupName": "prepare"
     },
     {
+      "name": "publishNUnitResults",
+      "type": "boolean",
+      "label": "ms-resource:loc.input.label.publishNUnitResults",
+      "defaultValue": false,
+      "visibleRule": "enablePrepare = true && framework = uitest",
+      "required": false,
+      "groupName": "prepare",
+      "helpMarkDown": "ms-resource:loc.input.help.publishNUnitResults"
+    },
+    {
       "name": "signInfo",
       "type": "string",
       "label": "ms-resource:loc.input.label.signInfo",
