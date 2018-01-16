@@ -121,7 +121,7 @@ function getPrepareRunner(cliPath: string, debug: boolean, app: string, artifact
         addStringArg('--uitest-tools-dir', 'uitestToolsDir', false, prepareRunner);
         addStringArg('--sign-info', 'signInfo', false, prepareRunner);
         if (publishNUnitResults) {
-          let nunitFile = path.join(testDir, '/appcentertest_' + buildId + '.1.xml');
+          let nunitFile = path.join(testDir, '/appcentertest_' + buildId + '.0.xml');
           prepareRunner.arg(['--nunit-xml', nunitFile]);
         }
     } else if (framework === 'xcuitest') {
