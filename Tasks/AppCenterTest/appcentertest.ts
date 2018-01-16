@@ -243,28 +243,30 @@ async function setTestRunIdBuildPropertyAsync(testRunId: string) {
 }
 
 function uploadTestSummary() {
-    tl.debug('Upload App Center Test run results summary. appCenterTestResults = ' + appCenterTestResults);
+    if (publishNUnitResults) {
+      tl.debug('Upload App Center Test run results summary. appCenterTestResults = ' + appCenterTestResults);
 
-    //create a .md file
-    var mdReportFile = path.join(testDir, '/appcentertest_' + buildId + '.md');
-    var reportData = '';
-    if (appCenterTestResults != null && appCenterTestResults.length > 0) {
-        for (var i = 0; i < appCenterTestResults.length; i++) {
-            reportData = reportData.concat(appCenterTestResults[i] + '<br>');
-        }
-    }
+      //create a .md file
+      var mdReportFile = path.join(testDir, '/appcentertest_' + buildId + '.md');
+      var reportData = '';
+      if (appCenterTestResults != null && appCenterTestResults.length > 0) {
+          for (var i = 0; i < appCenterTestResults.length; i++) {
+              reportData = reportData.concat(appCenterTestResults[i] + '<br>');
+          }
+      }
 
-    tl.debug('reportdata = ' + reportData);
-    tl.writeFile(mdReportFile, reportData);
-    tl.command('task.addattachment', {
+      tl.debug('reportdata = ' + reportData);
+      tl.writeFile(mdReportFile, reportData);
+      tl.command('task.addattachment', {
             name: "App Center Test Results",
             type: "Distributedtask.Core.Summary"
-        }, mdReportFile);
+          }, mdReportFile);
+    }
 }
 
 function publishTestResults() {
     if (publishNUnitResults) {
-
+        tl.debug('Publishing test results... ');
         var allFiles = tl.find(testDir);
         var matchOptions = {matchBase: true};
         var matchingTestResultsFiles = tl.match(allFiles, 'appcentertest_' + buildId + '*.xml', matchOptions);
@@ -281,9 +283,10 @@ var onRunComplete = function () {
 }
 
 var onFailedExecution = function (err) {
-    tl.setResult(tl.TaskResult.Failed, err);
-    tl.debug('Error executing test run: ' + err);
-    onRunComplete();
+  tl.debug('Test run failed');
+  tl.setResult(tl.TaskResult.Failed, err);
+  tl.debug('Error executing test run: ' + err);
+  onRunComplete();
 }
 
 async function run() {
@@ -327,6 +330,7 @@ async function run() {
             //read stdout
             testRunner.on('stdout', function (data) {
               if (data) {
+                tl.debug('TEMP ... ');
                 var matches = data.toString().toLowerCase().match(/https:\/\/appcenter.ms\/users\/.+\//g);
                 if (matches != null) {
                   appCenterTestResults = appCenterTestResults.concat(matches);
